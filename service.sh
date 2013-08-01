@@ -1,3 +1,4 @@
 #!/bin/bash
 
-echo "Placeholder for lexicon server run script"
+echo "Turn solr on"
+sudo service jetty start
