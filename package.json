@@ -1,0 +1,8 @@
+{
+  "name": "lexicon-elasticsearch",
+  "version": "0.0.1",
+  "description": "a simple nodejs elasticsearch wrapper for the lexicon server",
+  "dependencies": {
+    "express": "~3.3.5"
+  }
+}
