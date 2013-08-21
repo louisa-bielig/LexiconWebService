@@ -49,7 +49,7 @@ app.post('/train/lexicon/:pouchname', function(req, res) {
   var pouchname = req.params.pouchname;
 
   var couchoptions = {
-    host: '',
+    host: 'corpusdev.lingsync.org',
     path: '/' + pouchname + '/_design/pages/_view/get_datum_fields',
     auth: couch_keys.username + ':' + couch_keys.password,
     method: 'GET',
@@ -60,33 +60,33 @@ app.post('/train/lexicon/:pouchname', function(req, res) {
 
   makeJSONRequest(couchoptions, undefined, function(statusCode, result) {
 
-    for (var i = 0; i < result.rows.length; i++) {
-      (function(index) {
+    res.send(result);
 
-        var datumid = result.rows[index].id;
-        var record = '' + JSON.stringify(result.rows[index].key);
-        // var cleaned = record.replace(/[^A-Za-z 0-9 \.,\?""!@#\$%\^&\*\(\)-_=\+;:<>\/\\\|\}\{\[\]`~]*/g, '');
-        var esoptions = {
-          host: '',
-          path: '/' + pouchname + '/datums/' + datumid,
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded; charset=utf-16',
-            'Content-Length': record.length,
-            'Connection': 'Keep-Alive',
-            'Accept': '*/*',
-            'Accept-Encoding': 'gzip,deflate,sdch',
-            'Accept-Language': 'en-US,en;q=0.8'
-          }
-        };
+    // for (var i = 0; i < result.rows.length; i++) {
+    //   (function(index) {
 
-        makeJSONRequest(esoptions, record, function(statusCode, results) {
-          console.log(results);
-          res.send(statusCode);
-        });
-      })(i);
+    //     var datumid = result.rows[index].id;
+    //     var record = '' + JSON.stringify(result.rows[index].key);
+    //     // var cleaned = record.replace(/[^A-Za-z 0-9 \.,\?""!@#\$%\^&\*\(\)-_=\+;:<>\/\\\|\}\{\[\]`~]*/g, '');
+    //     var esoptions = {
+    //       host: 'lexicondev.lingsync.org',
+    //       path: '/' + pouchname + '/datums/' + datumid,
+    //       method: 'POST',
+    //       headers: {
+    //         'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8',
+    //         'Content-Length': record.length,
+    //         'Connection': 'Keep-Alive'
+    //       }
+    //     };
 
-    }
+    //     makeJSONRequest(esoptions, record, function(statusCode, results) {
+    //       console.log(results);
+    //       res.send(statusCode);
+    //     });
+
+    //   })(i);
+
+    // }
 
   });
 
@@ -113,7 +113,8 @@ function makeJSONRequest(options, data, onResult) {
   });
 
   if (data) {
-    req.end(data, 'utf8');
+    req.write(data, 'utf8');
+    req.end();
   } else {
     req.end();
   }
