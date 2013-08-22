@@ -2,6 +2,7 @@ var https = require('https'),
   express = require('express'),
   app = express(),
   fs = require('fs'),
+  search = require('./lib/search'),
   node_config = require("./lib/nodeconfig_local"),
   couch_keys = require("./lib/couchkeys_local");
 
@@ -29,20 +30,25 @@ app.configure(function() {
  * Routes
  */
 
-app.all('/train/*', function(req, res, next) {
-  // console.log(req);
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Headers', 'Origin, Authorization, Content-Type, X-Requested-With');
-  res.header('Access-Control-Allow-Methods', 'GET, PUT, POST, DELETE, OPTIONS');
-  return next();
+app.all('*', function(req, res, next) {
+  if (req.method.toLowerCase() !== 'options') {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Headers', 'Accept, Origin, Content-Type, X-Requested-With, X-HTTP-Method-Override');
+    res.header('Access-Control-Allow-Methods', 'GET, PUT, POST, DELETE, OPTIONS');
+    next();
+  } else {
+    var headers = {};
+    headers['Access-Control-Allow-Origin'] = '*';
+    headers['Access-Control-Allow-Headers'] = 'Accept, Origin, Content-Type, X-Requested-With, X-HTTP-Method-Override';
+    headers['Access-Control-Allow-Methods'] = 'GET, PUT, POST, DELETE, OPTIONS';
+    headers['Access-Control-Allow-Max-Age'] = '86400';
+    res.writeHead(200, headers);
+    res.end();
+  }
 });
 
-app.all('/train/*', function(req, res, next) {
-  if (req.method.toLowerCase() !== 'options') {
-    return next();
-  }
-  return res.send(204);
-});
+// app.all('*', function(req, res, next) {
+// });
 
 app.post('/train/lexicon/:pouchname', function(req, res) {
 
@@ -88,6 +94,30 @@ app.post('/train/lexicon/:pouchname', function(req, res) {
 
     // }
 
+  });
+
+});
+
+app.post('/search/:pouchname', function(req, res) {
+
+  var pouchname = req.params.pouchname;
+  var queryString = req.body.value;
+  var queryTokens = search.processQueryString(queryString);
+  var elasticsearchTemplateString = search.addQueryTokens(queryTokens);
+
+  var searchoptions = {
+    host: 'lexicondev.lingsync.org',
+    path: '/' + pouchname + '/datums/_search',
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(elasticsearchTemplateString, 'utf8')
+    }
+  };
+
+  makeJSONRequest(searchoptions, elasticsearchTemplateString, function(statusCode, results) {
+    console.log(results);
+    res.send(statusCode, results);
   });
 
 });
