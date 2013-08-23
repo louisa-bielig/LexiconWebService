@@ -23,32 +23,40 @@ app.configure(function() {
   app.use(express.cookieParser());
   app.use(express.bodyParser());
   app.use(express.methodOverride());
+
+  var allowCrossDomain = function(req, res, next) {
+    var check = false;
+    if (req.headers.origin) {
+      res.header('Access-Control-Allow-Origin', req.headers.origin);
+      check = true;
+    }
+    if (req.headers['access-control-request-method']) {
+      res.header('Access-Control-Allow-Methods', req.headers['access-control-request-method']);
+      check = true;
+    }
+    if (req.headers['access-control-request-headers']) {
+      res.header('Access-Control-Allow-Headers', req.headers['access-control-request-headers']);
+      check = true;
+    }
+    if (check) {
+      res.header('Access-Control-Max-Age', 60 * 60 * 24 * 365);
+    }
+
+    // intercept OPTIONS method
+    if (check && req.method == 'OPTIONS') {
+      res.send(200);
+    } else {
+      next();
+    }
+  };
+
+  app.use(allowCrossDomain);
   app.use(app.router);
 });
 
 /*
  * Routes
  */
-
-app.all('*', function(req, res, next) {
-  if (req.method.toLowerCase() !== 'options') {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Headers', 'Accept, Origin, Content-Type, X-Requested-With, X-HTTP-Method-Override');
-    res.header('Access-Control-Allow-Methods', 'GET, PUT, POST, DELETE, OPTIONS');
-    next();
-  } else {
-    var headers = {};
-    headers['Access-Control-Allow-Origin'] = '*';
-    headers['Access-Control-Allow-Headers'] = 'Accept, Origin, Content-Type, X-Requested-With, X-HTTP-Method-Override';
-    headers['Access-Control-Allow-Methods'] = 'GET, PUT, POST, DELETE, OPTIONS';
-    headers['Access-Control-Allow-Max-Age'] = '86400';
-    res.writeHead(200, headers);
-    res.end();
-  }
-});
-
-// app.all('*', function(req, res, next) {
-// });
 
 app.post('/train/lexicon/:pouchname', function(req, res) {
 
@@ -116,7 +124,7 @@ app.post('/search/:pouchname', function(req, res) {
   };
 
   makeJSONRequest(searchoptions, elasticsearchTemplateString, function(statusCode, results) {
-    console.log(results);
+    console.log(elasticsearchTemplateString);
     res.send(statusCode, results);
   });
 
