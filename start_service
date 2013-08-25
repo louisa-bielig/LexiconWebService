@@ -1,3 +1,11 @@
 #!/bin/bash
 
-bash service.sh
+cd $HOME/fielddbworkspace/LexiconWebService
+bash switch_to_producti.sh 
+
+$HOME/fielddbworkspace/LexiconWebService/node_modules/forever/bin/forever \
+start \
+-al $HOME/fielddbworkspace/logs/fielddblexicon.log \
+-ao $HOME/fielddbworkspace/logs/fielddblexiconout.log \
+-ae $HOME/fielddbworkspace/logs/fielddblexiconerr.log \
+service.js
