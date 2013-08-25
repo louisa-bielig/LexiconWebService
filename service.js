@@ -66,7 +66,7 @@ app.post('/train/lexicon/:pouchname', function(req, res) {
   var couchoptions = JSON.parse(JSON.stringify(node_config.corpusOptions));
 
   couchoptions.path = '/' + pouchname + '/_design/pages/_view/get_datum_fields';
-  couchoptions.auth = couch_keys.username + ':' + couch_keys.password;
+  couchoptions.auth = "public:none"; // Not indexing non-public data couch_keys.username + ':' + couch_keys.password;
   makeJSONRequest(couchoptions, undefined, function(statusCode, result) {
 
     res.send(result);
