@@ -3,8 +3,8 @@ var https = require('https'),
   app = express(),
   fs = require('fs'),
   search = require('./lib/search'),
-  node_config = require("./lib/nodeconfig_local"),
-  couch_keys = require("./lib/couchkeys_local");
+  node_config = require("./lib/nodeconfig_devserver"),
+  couch_keys = require("./lib/couchkeys_devserver");
 
 //read in the specified filenames as the security key and certificate
 node_config.httpsOptions.key = fs.readFileSync(node_config.httpsOptions.key);
@@ -113,14 +113,11 @@ app.post('/search/:pouchname', function(req, res) {
   var queryTokens = search.processQueryString(queryString);
   var elasticsearchTemplateString = search.addQueryTokens(queryTokens);
 
-  var searchoptions = {
-    host: 'lexicondev.lingsync.org',
-    path: '/' + pouchname + '/datums/_search',
-    method: 'POST',
-    headers: {
+  var searchoptions = JSON.parse(JSON.stringify(node_config.searchOptions));
+  searchoptions.path = '/' + pouchname + '/datums/_search';
+  searchoptions.headers =  {
       'Content-Type': 'application/json',
       'Content-Length': Buffer.byteLength(elasticsearchTemplateString, 'utf8')
-    }
   };
 
   makeJSONRequest(searchoptions, elasticsearchTemplateString, function(statusCode, results) {
@@ -148,6 +145,7 @@ function makeJSONRequest(options, data, onResult) {
 
   req.on('error', function(err) {
     console.log(err);
+    req.send({"error" : "No Results found"});
   });
 
   if (data) {
@@ -159,5 +157,6 @@ function makeJSONRequest(options, data, onResult) {
 
 }
 
-https.createServer(node_config.httpsOptions, app).listen(node_config.port);
+//https.createServer(node_config.httpsOptions, app).listen(node_config.port);
+app.listen(node_config.port);
 console.log(new Date() + 'Node+Express server listening on port %d', node_config.port);
