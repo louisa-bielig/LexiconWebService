@@ -11,12 +11,6 @@ var http = require('http'),
 node_config.httpsOptions.key = fs.readFileSync(node_config.httpsOptions.key);
 node_config.httpsOptions.cert = fs.readFileSync(node_config.httpsOptions.cert);
 
-// var connect = node_config.usersDbConnection.protocol + couch_keys.username + ':' +
-//   couch_keys.password + '@' + node_config.usersDbConnection.domain +
-//   ':' + node_config.usersDbConnection.port +
-//   node_config.usersDbConnection.path;
-// var nano = require('nano')(connect);
-
 // configure Express
 app.configure(function() {
   app.use(express.favicon());
@@ -62,41 +56,12 @@ app.configure(function() {
 app.post('/train/lexicon/:pouchname', function(req, res) {
 
   var pouchname = req.params.pouchname;
-
   var couchoptions = JSON.parse(JSON.stringify(node_config.corpusOptions));
-
   couchoptions.path = '/' + pouchname + '/_design/pages/_view/get_datum_fields';
   couchoptions.auth = "public:none"; // Not indexing non-public data couch_keys.username + ':' + couch_keys.password;
+
   makeJSONRequest(couchoptions, undefined, function(statusCode, result) {
-
     res.send(result);
-
-    // for (var i = 0; i < result.rows.length; i++) {
-    //   (function(index) {
-
-    //     var datumid = result.rows[index].id;
-    //     var record = '' + JSON.stringify(result.rows[index].key);
-    //     // var cleaned = record.replace(/[^A-Za-z 0-9 \.,\?""!@#\$%\^&\*\(\)-_=\+;:<>\/\\\|\}\{\[\]`~]*/g, '');
-    //     var esoptions = {
-    //       host: 'lexicondev.lingsync.org',
-    //       path: '/' + pouchname + '/datums/' + datumid,
-    //       method: 'POST',
-    //       headers: {
-    //         'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8',
-    //         'Content-Length': record.length,
-    //         'Connection': 'Keep-Alive'
-    //       }
-    //     };
-
-    //     makeJSONRequest(esoptions, record, function(statusCode, results) {
-    //       console.log(results);
-    //       res.send(statusCode);
-    //     });
-
-    //   })(i);
-
-    // }
-
   });
 
 });
@@ -110,7 +75,7 @@ app.post('/search/:pouchname', function(req, res) {
 
   var searchoptions = JSON.parse(JSON.stringify(node_config.searchOptions));
   searchoptions.path = '/' + pouchname + '/datums/_search';
-  searchoptions.headers =  {
+  searchoptions.headers = {
       'Content-Type': 'application/json',
       'Content-Length': Buffer.byteLength(elasticsearchTemplateString, 'utf8')
   };
@@ -125,10 +90,11 @@ app.post('/search/:pouchname', function(req, res) {
 function makeJSONRequest(options, data, onResult) {
 
   var httpOrHttps = http;
-  if(options.protocol == "https://"){
+  if (options.protocol == 'https://') {
     httpOrHttps = https;
   }
   delete options.protocol;
+
   var req = httpOrHttps.request(options, function(res) {
     var output = '';
     res.setEncoding('utf8');
@@ -147,7 +113,6 @@ function makeJSONRequest(options, data, onResult) {
     console.log('Error searching for ' + JSON.stringify(data));
     console.log(options);
     console.log(err);
-    
   });
 
   if (data) {
