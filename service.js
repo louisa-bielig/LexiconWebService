@@ -1,10 +1,11 @@
-var https = require('https'),
+var http = require('http'),
+  https = require('https'),
   express = require('express'),
   app = express(),
   fs = require('fs'),
   search = require('./lib/search'),
-  node_config = require("./lib/nodeconfig_local"),
-  couch_keys = require("./lib/couchkeys_local");
+  node_config = require("./lib/nodeconfig_devserver"),
+  couch_keys = require("./lib/couchkeys_devserver");
 
 //read in the specified filenames as the security key and certificate
 node_config.httpsOptions.key = fs.readFileSync(node_config.httpsOptions.key);
@@ -62,16 +63,10 @@ app.post('/train/lexicon/:pouchname', function(req, res) {
 
   var pouchname = req.params.pouchname;
 
-  var couchoptions = {
-    host: 'corpusdev.lingsync.org',
-    path: '/' + pouchname + '/_design/pages/_view/get_datum_fields',
-    auth: couch_keys.username + ':' + couch_keys.password,
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  };
+  var couchoptions = JSON.parse(JSON.stringify(node_config.corpusOptions));
 
+  couchoptions.path = '/' + pouchname + '/_design/pages/_view/get_datum_fields';
+  couchoptions.auth = "public:none"; // Not indexing non-public data couch_keys.username + ':' + couch_keys.password;
   makeJSONRequest(couchoptions, undefined, function(statusCode, result) {
 
     res.send(result);
@@ -113,14 +108,11 @@ app.post('/search/:pouchname', function(req, res) {
   var queryTokens = search.processQueryString(queryString);
   var elasticsearchTemplateString = search.addQueryTokens(queryTokens);
 
-  var searchoptions = {
-    host: 'lexicondev.lingsync.org',
-    path: '/' + pouchname + '/datums/_search',
-    method: 'POST',
-    headers: {
+  var searchoptions = JSON.parse(JSON.stringify(node_config.searchOptions));
+  searchoptions.path = '/' + pouchname + '/datums/_search';
+  searchoptions.headers =  {
       'Content-Type': 'application/json',
       'Content-Length': Buffer.byteLength(elasticsearchTemplateString, 'utf8')
-    }
   };
 
   makeJSONRequest(searchoptions, elasticsearchTemplateString, function(statusCode, results) {
@@ -132,7 +124,12 @@ app.post('/search/:pouchname', function(req, res) {
 
 function makeJSONRequest(options, data, onResult) {
 
-  var req = https.request(options, function(res) {
+  var httpOrHttps = http;
+  if(options.protocol == "https://"){
+    httpOrHttps = https;
+  }
+  delete options.protocol;
+  var req = httpOrHttps.request(options, function(res) {
     var output = '';
     res.setEncoding('utf8');
 
@@ -147,7 +144,10 @@ function makeJSONRequest(options, data, onResult) {
   });
 
   req.on('error', function(err) {
+    console.log('Error searching for ' + JSON.stringify(data));
+    console.log(options);
     console.log(err);
+    
   });
 
   if (data) {
@@ -159,5 +159,6 @@ function makeJSONRequest(options, data, onResult) {
 
 }
 
-https.createServer(node_config.httpsOptions, app).listen(node_config.port);
-console.log(new Date() + 'Node+Express server listening on port %d', node_config.port);
+//https.createServer(node_config.httpsOptions, app).listen(node_config.httpsOptions.port);
+app.listen(node_config.httpsOptions.port);
+console.log(new Date() + 'Node+Express server listening on port %d', node_config.httpsOptions.port);
