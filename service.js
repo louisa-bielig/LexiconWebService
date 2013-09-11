@@ -3,6 +3,7 @@ var http = require('http'),
   express = require('express'),
   app = express(),
   fs = require('fs'),
+  exec = require('child_process').exec,
   search = require('./lib/search'),
   node_config = require("./lib/nodeconfig_devserver"),
   couch_keys = require("./lib/couchkeys_devserver");
@@ -52,6 +53,27 @@ app.configure(function() {
 /*
  * Routes
  */
+
+app.post('/parse/inuktitut/:word', function(req, res) {
+
+  var searchTerms = encodeURIComponent(req.params.word);
+
+  var command = './bin/uqailaut.sh ' + searchTerms;
+  var child = exec(command, function(err, stdout, stderr) {
+    if (err) {
+      throw err;
+    } else {
+      console.log('Analyzed: ' + searchTerms);
+      console.log('sent results: ' + stdout);
+
+      var results = stdout.split('\n');
+      results.pop();
+
+      res.send({'output': results});
+    }
+  });
+
+});
 
 app.post('/train/lexicon/:pouchname', function(req, res) {
 
