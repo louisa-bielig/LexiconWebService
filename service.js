@@ -54,22 +54,71 @@ app.configure(function() {
  * Routes
  */
 
-app.post('/parse/inuktitut/:word', function(req, res) {
+app.post('/farley/inuktitut/:word', function(req, res) {
 
-  var searchTerms = encodeURIComponent(req.params.word);
+  var searchTerm = encodeURIComponent(req.params.word);
 
-  var command = './bin/uqailaut.sh ' + searchTerms;
+  var command = './bin/uqailaut.sh ' + searchTerm;
   var child = exec(command, function(err, stdout, stderr) {
     if (err) {
       throw err;
     } else {
-      console.log('Analyzed: ' + searchTerms);
+      console.log('Analyzed: ' + searchTerm);
       console.log('sent results: ' + stdout);
 
       var results = stdout.split('\n');
       results.pop();
 
       res.send({'output': results});
+    }
+  });
+
+});
+
+app.post('/segment/inuktitut/:word', function(req, res) {
+
+  var searchTerm = encodeURIComponent(req.params.word);
+
+  var command = './bin/uqailaut.sh ' + searchTerm;
+  var child = exec(command, function(err, stdout, stderr) {
+    if (err) {
+      throw err;
+    } else {
+      console.log('Analyzed: ' + searchTerm);
+      console.log('sent results: ' + stdout);
+
+      var results = stdout.split('\n');
+      results.pop();
+
+      var results2 = [];
+      var braces = new RegExp(/\}\{/g);
+      var allomorphs = [], morphemes = [], glosses = [];
+      var aReg = new RegExp(/\{([^:]*)\:/),
+          mReg = new RegExp(/\:([^\/]*)\//),
+          gReg = new RegExp(/\/([^}]*)\}/);
+
+      for (var seg in results) {
+        results2.push(results[seg].replace(braces, '} {').split(' '));
+      }
+
+      for (var set in results2) {
+        for (var record in results2[set]) {
+          var currentString = results2[set][record];
+          if (allomorphs.indexOf(currentString.match(aReg)[1]) === -1)
+            allomorphs.push(currentString.match(aReg)[1]);
+          if (morphemes.indexOf(currentString.match(mReg)[1]) === -1)
+            morphemes.push(currentString.match(mReg)[1]);
+          if (glosses.indexOf(currentString.match(gReg)[1]) === -1)
+            glosses.push(currentString.match(gReg)[1]);
+        }
+      }
+
+      var output = {};
+      output.allomorphs = allomorphs;
+      output.morphemes = morphemes;
+      output.glosses = glosses;
+
+      res.send(output);
     }
   });
 
