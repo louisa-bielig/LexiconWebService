@@ -5,6 +5,8 @@ var http = require('http'),
   fs = require('fs'),
   exec = require('child_process').exec,
   search = require('./lib/search'),
+  param = require('./node_modules/swagger-node-express/Common/node/paramTypes.js'),
+
   node_config = require("./lib/nodeconfig_devserver"),
   couch_keys = require("./lib/couchkeys_devserver");
 
@@ -18,6 +20,7 @@ app.configure(function() {
   app.use(express.logger());
   app.use(express.cookieParser());
   app.use(express.bodyParser());
+  app.use(express.static(__dirname + '/public'));
   app.use(express.methodOverride());
 
   var allowCrossDomain = function(req, res, next) {
@@ -58,7 +61,7 @@ app.post('/farley/inuktitut/:word', function(req, res) {
 
   var searchTerm = encodeURIComponent(req.params.word);
 
-  var command = './bin/uqailaut.sh ' + searchTerm;
+  var command = './lib/uqailaut.sh ' + searchTerm;
   var child = exec(command, function(err, stdout, stderr) {
     if (err) {
       throw err;
@@ -69,67 +72,75 @@ app.post('/farley/inuktitut/:word', function(req, res) {
       var results = stdout.split('\n');
       results.pop();
 
-      res.send({'output': results});
+      res.send({
+        'output': results
+      });
     }
   });
 
 });
 
-app.post('/segment/inuktitut/:word', function(req, res) {
+app.all('/segment/inuktitut/:word', function(req, res) {
 
-  var searchTerm = encodeURIComponent(req.params.word);
+    var searchTerm = req.params.word;
+    // var searchArray = req.params.word.split('%20');
+    var allomorphs = [], morphemes = [], glosses = [];
 
-  var command = './bin/uqailaut.sh ' + searchTerm;
-  var child = exec(command, function(err, stdout, stderr) {
-    if (err) {
-      throw err;
-    } else {
-      console.log('Analyzed: ' + searchTerm);
-      console.log('sent results: ' + stdout);
+    // for (var i = 0; i < searchArray.length; i++) {
+    //   (function(index) {
+    //     parseTerm(searchArray[index]);
+    //   })(i);
+    // }
 
-      var results = stdout.split('\n');
-      results.pop();
+    searchTerm = encodeURIComponent(searchTerm);
+    var command = './lib/uqailaut.sh ' + searchTerm;
+    var child = exec(command, function(err, stdout, stderr) {
+      if (err) {
+        throw err;
+      } else {
+        console.log('Analyzed: ' + searchTerm);
 
-      var results2 = [];
-      var braces = new RegExp(/\}\{/g);
-      var allomorphs = [], morphemes = [], glosses = [];
-      var aReg = new RegExp(/\{([^:]*)\:/),
-          mReg = new RegExp(/\:([^\/]*)\//),
-          gReg = new RegExp(/\/([^}]*)\}/);
+        var results = stdout.split('\n');
+        results.pop();
 
-      for (var seg in results) {
-        results2.push(results[seg].replace(braces, '} {').split(' '));
-      }
+        if (results.length === 0) {
 
-      for (var set in results2) {
-        for (var record in results2[set]) {
-          var currentString = results2[set][record];
-          if (allomorphs.indexOf(currentString.match(aReg)[1]) === -1)
-            allomorphs.push(currentString.match(aReg)[1]);
-          if (morphemes.indexOf(currentString.match(mReg)[1]) === -1)
-            morphemes.push(currentString.match(mReg)[1]);
-          if (glosses.indexOf(currentString.match(gReg)[1]) === -1)
-            glosses.push(currentString.match(gReg)[1]);
+          allomorphs.push(searchTerm);
+          morphemes.push(searchTerm);
+          glosses.push(searchTerm);
+
+        } else {
+
+          var aReg = new RegExp(/([^{:\/}]+)(?=\:)/g),
+              mReg = new RegExp(/([^{:\/}]+)(?=\/)/g),
+              gReg = new RegExp(/([^{:\/}]+)(?=\})/g);
+
+          for (var line in results) {
+            var aMatch = results[line].match(aReg).join('-'),
+                mMatch = results[line].match(mReg).join('-'),
+                gMatch = results[line].replace(/-/g, '.').match(gReg).join('-');
+
+            if (allomorphs.indexOf(aMatch) === -1) allomorphs.push(aMatch);
+            if (morphemes.indexOf(mMatch) === -1) morphemes.push(mMatch);
+            if (glosses.indexOf(gMatch) === -1) glosses.push(gMatch);
+          }
         }
       }
+    });
 
-      var output = {};
-      output.allomorphs = allomorphs;
-      output.morphemes = morphemes;
-      output.glosses = glosses;
-
-      res.send(output);
-    }
-  });
-
-});
+    var output = {allomorphs: allomorphs, morphemes: morphemes, glosses: glosses};
+    console.log('Sent results: \n' + JSON.stringify(output));
+    res.send(output);
+  }
+}
+  );
 
 app.post('/train/lexicon/:pouchname', function(req, res) {
 
   var pouchname = req.params.pouchname;
   var couchoptions = JSON.parse(JSON.stringify(node_config.corpusOptions));
   couchoptions.path = '/' + pouchname + '/_design/pages/_view/get_datum_fields';
-  couchoptions.auth = "public:none"; // Not indexing non-public data couch_keys.username + ':' + couch_keys.password;
+  couchoptions.auth = 'public:none'; // Not indexing non-public data couch_keys.username + ':' + couch_keys.password;
 
   makeJSONRequest(couchoptions, undefined, function(statusCode, result) {
     res.send(result);
@@ -147,8 +158,8 @@ app.post('/search/:pouchname', function(req, res) {
   var searchoptions = JSON.parse(JSON.stringify(node_config.searchOptions));
   searchoptions.path = '/' + pouchname + '/datums/_search';
   searchoptions.headers = {
-      'Content-Type': 'application/json',
-      'Content-Length': Buffer.byteLength(elasticsearchTemplateString, 'utf8')
+    'Content-Type': 'application/json',
+    'Content-Length': Buffer.byteLength(elasticsearchTemplateString, 'utf8')
   };
 
   makeJSONRequest(searchoptions, elasticsearchTemplateString, function(statusCode, results) {
