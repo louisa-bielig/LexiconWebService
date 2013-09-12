@@ -5,8 +5,6 @@ var http = require('http'),
   fs = require('fs'),
   exec = require('child_process').exec,
   search = require('./lib/search'),
-  param = require('./node_modules/swagger-node-express/Common/node/paramTypes.js'),
-
   node_config = require("./lib/nodeconfig_devserver"),
   couch_keys = require("./lib/couchkeys_devserver");
 
@@ -20,7 +18,6 @@ app.configure(function() {
   app.use(express.logger());
   app.use(express.cookieParser());
   app.use(express.bodyParser());
-  app.use(express.static(__dirname + '/public'));
   app.use(express.methodOverride());
 
   var allowCrossDomain = function(req, res, next) {
@@ -72,9 +69,7 @@ app.post('/farley/inuktitut/:word', function(req, res) {
       var results = stdout.split('\n');
       results.pop();
 
-      res.send({
-        'output': results
-      });
+      res.send({'output': results});
     }
   });
 
