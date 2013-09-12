@@ -82,58 +82,47 @@ app.post('/farley/inuktitut/:word', function(req, res) {
 
 app.all('/segment/inuktitut/:word', function(req, res) {
 
-    var searchTerm = req.params.word;
-    // var searchArray = req.params.word.split('%20');
-    var allomorphs = [], morphemes = [], glosses = [];
+  var searchTerm = encodeURIComponent(req.params.word);
+  var allomorphs = [], morphemes = [], glosses = [];
 
-    // for (var i = 0; i < searchArray.length; i++) {
-    //   (function(index) {
-    //     parseTerm(searchArray[index]);
-    //   })(i);
-    // }
+  var command = './lib/uqailaut.sh ' + searchTerm;
+  var child = exec(command, function(err, stdout, stderr) {
+    if (err) {
+      throw err;
+    } else {
+      console.log('Analyzed: ' + searchTerm);
 
-    searchTerm = encodeURIComponent(searchTerm);
-    var command = './lib/uqailaut.sh ' + searchTerm;
-    var child = exec(command, function(err, stdout, stderr) {
-      if (err) {
-        throw err;
+      var results = stdout.split('\n');
+      results.pop();
+
+      if (results.length === 0) {
+
+        allomorphs.push(searchTerm);
+        morphemes.push(searchTerm);
+        glosses.push(searchTerm);
+
       } else {
-        console.log('Analyzed: ' + searchTerm);
 
-        var results = stdout.split('\n');
-        results.pop();
+        var aReg = new RegExp(/([^{:\/}]+)(?=\:)/g),
+            mReg = new RegExp(/([^{:\/}]+)(?=\/)/g),
+            gReg = new RegExp(/([^{:\/}]+)(?=\})/g);
 
-        if (results.length === 0) {
+        for (var line in results) {
+          var aMatch = results[line].match(aReg).join('-'),
+              mMatch = results[line].match(mReg).join('-'),
+              gMatch = results[line].replace(/-/g, '.').match(gReg).join('-');
 
-          allomorphs.push(searchTerm);
-          morphemes.push(searchTerm);
-          glosses.push(searchTerm);
-
-        } else {
-
-          var aReg = new RegExp(/([^{:\/}]+)(?=\:)/g),
-              mReg = new RegExp(/([^{:\/}]+)(?=\/)/g),
-              gReg = new RegExp(/([^{:\/}]+)(?=\})/g);
-
-          for (var line in results) {
-            var aMatch = results[line].match(aReg).join('-'),
-                mMatch = results[line].match(mReg).join('-'),
-                gMatch = results[line].replace(/-/g, '.').match(gReg).join('-');
-
-            if (allomorphs.indexOf(aMatch) === -1) allomorphs.push(aMatch);
-            if (morphemes.indexOf(mMatch) === -1) morphemes.push(mMatch);
-            if (glosses.indexOf(gMatch) === -1) glosses.push(gMatch);
-          }
+          if (allomorphs.indexOf(aMatch) === -1) allomorphs.push(aMatch);
+          if (morphemes.indexOf(mMatch) === -1) morphemes.push(mMatch);
+          if (glosses.indexOf(gMatch) === -1) glosses.push(gMatch);
         }
+        var output = {allomorphs: allomorphs, morphemes: morphemes, glosses: glosses};
+        console.log('Sent results: \n' + JSON.stringify(output));
+        res.send(output);
       }
-    });
-
-    var output = {allomorphs: allomorphs, morphemes: morphemes, glosses: glosses};
-    console.log('Sent results: \n' + JSON.stringify(output));
-    res.send(output);
-  }
-}
-  );
+    }
+  });
+});
 
 app.post('/train/lexicon/:pouchname', function(req, res) {
 
