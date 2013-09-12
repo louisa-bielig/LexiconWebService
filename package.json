@@ -4,6 +4,8 @@
   "description": "a simple nodejs elasticsearch wrapper for the lexicon server",
   "dependencies": {
     "express": "~3.3.5",
-    "forever": "latest"
+    "forever": "latest",
+    "swagger-node-express": "~1.2.3",
+    "q": "~0.9.7"
   }
 }
