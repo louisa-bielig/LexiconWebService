@@ -77,46 +77,71 @@ app.post('/farley/inuktitut/:word', function(req, res) {
 
 app.all('/segment/inuktitut/:word', function(req, res) {
 
-  var searchTerm = encodeURIComponent(req.params.word);
-  var allomorphs = [], morphemes = [], glosses = [];
+  var searchTerm = encodeURIComponent(req.params.word).split('%20');
+  var allomorphs = {}, morphemes = {}, glosses = {};
+  var submittedTerms = searchTerm.length;
+  var processedTerms = 0;
 
-  var command = './lib/uqailaut.sh ' + searchTerm;
-  var child = exec(command, function(err, stdout, stderr) {
-    if (err) {
-      throw err;
-    } else {
-      console.log('Analyzed: ' + searchTerm);
+  for (var word in searchTerm) {
+    allomorphs[searchTerm[word]] = [];
+    morphemes[searchTerm[word]] = [];
+    glosses[searchTerm[word]] = [];
+  }
 
-      var results = stdout.split('\n');
-      results.pop();
+  for (var i = 0; i < submittedTerms; i++) {
 
-      if (results.length === 0) {
+    (function(index) {
+      var currentWord = searchTerm[index];
+      var command = './lib/uqailaut.sh ' + currentWord;
+      var child = exec(command, function(err, stdout, stderr) {
+        if (err) {
+          throw err;
+        } else {
+          console.log('Analyzed: ' + currentWord);
 
-        allomorphs.push(searchTerm);
-        morphemes.push(searchTerm);
-        glosses.push(searchTerm);
+          var results = stdout.split('\n');
+          results.pop();
 
-      } else {
+          if (results.length === 0) {
 
-        var aReg = new RegExp(/([^{:\/}]+)(?=\:)/g),
-            mReg = new RegExp(/([^{:\/}]+)(?=\/)/g),
-            gReg = new RegExp(/([^{:\/}]+)(?=\})/g);
+            allomorphs[currentWord].push(currentWord);
+            morphemes[currentWord].push(currentWord);
+            glosses[currentWord].push(currentWord);
 
-        for (var line in results) {
-          var aMatch = results[line].match(aReg).join('-'),
-              mMatch = results[line].match(mReg).join('-'),
-              gMatch = results[line].replace(/-/g, '.').match(gReg).join('-');
+            processedTerms++;
+            if (processedTerms == submittedTerms) {
+              var output = {allomorphs: allomorphs, morphemes: morphemes, glosses: glosses};
+              console.log('Sent results: \n' + JSON.stringify(output));
+              res.send(output);
+            }
 
-          if (allomorphs.indexOf(aMatch) === -1) allomorphs.push(aMatch);
-          if (morphemes.indexOf(mMatch) === -1) morphemes.push(mMatch);
-          if (glosses.indexOf(gMatch) === -1) glosses.push(gMatch);
+          } else {
+
+            var aReg = new RegExp(/([^{:\/}]+)(?=\:)/g),
+                mReg = new RegExp(/([^{:\/}]+)(?=\/)/g),
+                gReg = new RegExp(/([^{:\/}]+)(?=\})/g);
+
+            for (var line in results) {
+              var aMatch = results[line].match(aReg).join('-'),
+                  mMatch = results[line].match(mReg).join('-'),
+                  gMatch = results[line].replace(/-/g, '.').match(gReg).join('-');
+
+              if (allomorphs[currentWord].indexOf(aMatch) === -1) allomorphs[currentWord].push(aMatch);
+              if (morphemes[currentWord].indexOf(mMatch) === -1) morphemes[currentWord].push(mMatch);
+              if (glosses[currentWord].indexOf(gMatch) === -1) glosses[currentWord].push(gMatch);
+
+            }
+            processedTerms++;
+            if (processedTerms == submittedTerms) {
+              var output = {allomorphs: allomorphs, morphemes: morphemes, glosses: glosses};
+              console.log('Sent results: \n' + JSON.stringify(output));
+              res.send(output);
+            }
+          }
         }
-        var output = {allomorphs: allomorphs, morphemes: morphemes, glosses: glosses};
-        console.log('Sent results: \n' + JSON.stringify(output));
-        res.send(output);
-      }
-    }
-  });
+      });
+    })(i);
+  }
 });
 
 app.post('/train/lexicon/:pouchname', function(req, res) {
