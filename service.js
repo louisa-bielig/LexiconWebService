@@ -3,6 +3,7 @@ var http = require('http'),
   express = require('express'),
   app = express(),
   fs = require('fs'),
+  exec = require('child_process').exec,
   search = require('./lib/search'),
   node_config = require("./lib/nodeconfig_devserver"),
   couch_keys = require("./lib/couchkeys_devserver");
@@ -10,12 +11,6 @@ var http = require('http'),
 //read in the specified filenames as the security key and certificate
 node_config.httpsOptions.key = fs.readFileSync(node_config.httpsOptions.key);
 node_config.httpsOptions.cert = fs.readFileSync(node_config.httpsOptions.cert);
-
-// var connect = node_config.usersDbConnection.protocol + couch_keys.username + ':' +
-//   couch_keys.password + '@' + node_config.usersDbConnection.domain +
-//   ':' + node_config.usersDbConnection.port +
-//   node_config.usersDbConnection.path;
-// var nano = require('nano')(connect);
 
 // configure Express
 app.configure(function() {
@@ -59,44 +54,58 @@ app.configure(function() {
  * Routes
  */
 
+app.all('/farley/inuktitut/:word', function(req, res) {
+
+  var searchTerm = encodeURIComponent(req.params.word);
+
+  var command = './lib/uqailaut.sh ' + searchTerm;
+  var child = exec(command, function(err, stdout, stderr) {
+    if (err) {
+      throw err;
+    } else {
+      console.log('Analyzed: ' + searchTerm);
+      console.log('sent results: ' + stdout);
+
+      var results = stdout.split('\n');
+      results.pop();
+
+      res.send({
+        'output': results
+      });
+    }
+  });
+
+});
+
+app.all('/analysisbytierbyword/inuktitut/:word', function(req, res) {
+  analyzeInuktitutByTierByWord(req, res, 'all');
+});
+
+app.all('/allomorphs/inuktitut/:word', function(req, res) {
+  analyzeInuktitutByTierByWord(req, res, 'allomorphs');
+});
+
+app.all('/morphemes/inuktitut/:word', function(req, res) {
+  analyzeInuktitutByTierByWord(req, res, 'morphemes');
+});
+
+app.all('/morphosyntacticcategories/inuktitut/:word', function(req, res) {
+  analyzeInuktitutByTierByWord(req, res, 'morphosyntacticcategories');
+});
+
+app.all('/gloss/inuktitut/:word', function(req, res) {
+  analyzeInuktitutByTierByWord(req, res, 'gloss');
+});
+
 app.post('/train/lexicon/:pouchname', function(req, res) {
 
   var pouchname = req.params.pouchname;
-
   var couchoptions = JSON.parse(JSON.stringify(node_config.corpusOptions));
-
   couchoptions.path = '/' + pouchname + '/_design/pages/_view/get_datum_fields';
-  couchoptions.auth = "public:none"; // Not indexing non-public data couch_keys.username + ':' + couch_keys.password;
+  couchoptions.auth = 'public:none'; // Not indexing non-public data couch_keys.username + ':' + couch_keys.password;
+
   makeJSONRequest(couchoptions, undefined, function(statusCode, result) {
-
     res.send(result);
-
-    // for (var i = 0; i < result.rows.length; i++) {
-    //   (function(index) {
-
-    //     var datumid = result.rows[index].id;
-    //     var record = '' + JSON.stringify(result.rows[index].key);
-    //     // var cleaned = record.replace(/[^A-Za-z 0-9 \.,\?""!@#\$%\^&\*\(\)-_=\+;:<>\/\\\|\}\{\[\]`~]*/g, '');
-    //     var esoptions = {
-    //       host: 'lexicondev.lingsync.org',
-    //       path: '/' + pouchname + '/datums/' + datumid,
-    //       method: 'POST',
-    //       headers: {
-    //         'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8',
-    //         'Content-Length': record.length,
-    //         'Connection': 'Keep-Alive'
-    //       }
-    //     };
-
-    //     makeJSONRequest(esoptions, record, function(statusCode, results) {
-    //       console.log(results);
-    //       res.send(statusCode);
-    //     });
-
-    //   })(i);
-
-    // }
-
   });
 
 });
@@ -110,9 +119,9 @@ app.post('/search/:pouchname', function(req, res) {
 
   var searchoptions = JSON.parse(JSON.stringify(node_config.searchOptions));
   searchoptions.path = '/' + pouchname + '/datums/_search';
-  searchoptions.headers =  {
-      'Content-Type': 'application/json',
-      'Content-Length': Buffer.byteLength(elasticsearchTemplateString, 'utf8')
+  searchoptions.headers = {
+    'Content-Type': 'application/json',
+    'Content-Length': Buffer.byteLength(elasticsearchTemplateString, 'utf8')
   };
 
   makeJSONRequest(searchoptions, elasticsearchTemplateString, function(statusCode, results) {
@@ -122,13 +131,120 @@ app.post('/search/:pouchname', function(req, res) {
 
 });
 
+function analyzeInuktitutByTierByWord(req, res, returnTier) {
+  var searchTerm = encodeURIComponent(req.params.word).split('%20');
+  var allomorphs = {}, morphemes = {}, glosses = {};
+  farley = {};
+  var submittedTerms = searchTerm.length;
+  var processedTerms = 0;
+
+  for (var word in searchTerm) {
+    allomorphs[searchTerm[word]] = [];
+    morphemes[searchTerm[word]] = [];
+    glosses[searchTerm[word]] = [];
+  }
+
+  for (var i = 0; i < submittedTerms; i++) {
+
+    (function(index) {
+      var currentWord = searchTerm[index];
+      var command = './lib/uqailaut.sh ' + currentWord;
+      var child = exec(command, function(err, stdout, stderr) {
+        if (err) {
+          throw err;
+        } else {
+          console.log('Analyzed: ' + currentWord);
+
+          var results = stdout.split('\n');
+          results.pop();
+          farley[currentWord] = results;
+
+          if (results.length === 0) {
+
+            allomorphs[currentWord].push(currentWord);
+            morphemes[currentWord].push(currentWord);
+            glosses[currentWord].push(currentWord);
+
+            processedTerms++;
+            if (processedTerms == submittedTerms) {
+              var output = filterOutput({
+                analysisByTierByWord: {
+                  allomorphs: allomorphs,
+                  morphemes: morphemes,
+                  glosses: glosses
+                },
+                farley: farley
+              }, returnTier);
+              console.log('Sent results: \n' + JSON.stringify(output));
+              res.send(output);
+            }
+
+          } else {
+
+            var aReg = new RegExp(/([^{:\/}]+)(?=\:)/g),
+              mReg = new RegExp(/([^{:\/}]+)(?=\/)/g),
+              gReg = new RegExp(/([^{:\/}]+)(?=\})/g);
+
+            for (var line in results) {
+              var aMatch = results[line].match(aReg).join('-'),
+                mMatch = results[line].match(mReg).join('-'),
+                gMatch = results[line].replace(/-/g, '.').match(gReg).join('-');
+
+              if (allomorphs[currentWord].indexOf(aMatch) === -1) allomorphs[currentWord].push(aMatch);
+              if (morphemes[currentWord].indexOf(mMatch) === -1) morphemes[currentWord].push(mMatch);
+              if (glosses[currentWord].indexOf(gMatch) === -1) glosses[currentWord].push(gMatch);
+
+            }
+            processedTerms++;
+            if (processedTerms == submittedTerms) {
+              var output = filterOutput({
+                analysisByTierByWord: {
+                  allomorphs: allomorphs,
+                  morphemes: morphemes,
+                  glosses: glosses
+                },
+                farley: farley
+              }, returnTier);
+              console.log('Sent results: \n' + JSON.stringify(output));
+              res.send(output);
+            }
+          }
+        }
+      });
+    })(i);
+  }
+}
+
+function filterOutput(output, returnTier) {
+
+  switch (returnTier) {
+    case 'all':
+      return output;
+      break;
+    case 'allomorphs':
+      return output.analysisByTierByWord.allomorphs;
+      break;
+    case 'morphemes':
+      return output.analysisByTierByWord.morphemes;
+      break;
+    case 'gloss':
+      return output.analysisByTierByWord.glosses;
+      break;
+    case 'morphosyntacticcategories':
+      return output.analysisByTierByWord.glosses;
+      break;
+  }
+
+}
+
 function makeJSONRequest(options, data, onResult) {
 
   var httpOrHttps = http;
-  if(options.protocol == "https://"){
+  if (options.protocol == 'https://') {
     httpOrHttps = https;
   }
   delete options.protocol;
+
   var req = httpOrHttps.request(options, function(res) {
     var output = '';
     res.setEncoding('utf8');
@@ -147,7 +263,6 @@ function makeJSONRequest(options, data, onResult) {
     console.log('Error searching for ' + JSON.stringify(data));
     console.log(options);
     console.log(err);
-    
   });
 
   if (data) {
