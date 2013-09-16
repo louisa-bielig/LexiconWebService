@@ -54,7 +54,7 @@ app.configure(function() {
  * Routes
  */
 
-app.post('/farley/inuktitut/:word', function(req, res) {
+app.all('/farley/inuktitut/:word', function(req, res) {
 
   var searchTerm = encodeURIComponent(req.params.word);
 
@@ -69,79 +69,32 @@ app.post('/farley/inuktitut/:word', function(req, res) {
       var results = stdout.split('\n');
       results.pop();
 
-      res.send({'output': results});
+      res.send({
+        'output': results
+      });
     }
   });
 
 });
 
-app.all('/segment/inuktitut/:word', function(req, res) {
+app.all('/analysisbytierbyword/inuktitut/:word', function(req, res) {
+  analyzeInuktitutByTierByWord(req, res, 'all');
+});
 
-  var searchTerm = encodeURIComponent(req.params.word).split('%20');
-  var allomorphs = {}, morphemes = {}, glosses = {};
-  var submittedTerms = searchTerm.length;
-  var processedTerms = 0;
+app.all('/allomorphs/inuktitut/:word', function(req, res) {
+  analyzeInuktitutByTierByWord(req, res, 'allomorphs');
+});
 
-  for (var word in searchTerm) {
-    allomorphs[searchTerm[word]] = [];
-    morphemes[searchTerm[word]] = [];
-    glosses[searchTerm[word]] = [];
-  }
+app.all('/morphemes/inuktitut/:word', function(req, res) {
+  analyzeInuktitutByTierByWord(req, res, 'morphemes');
+});
 
-  for (var i = 0; i < submittedTerms; i++) {
+app.all('/morphosyntacticcategories/inuktitut/:word', function(req, res) {
+  analyzeInuktitutByTierByWord(req, res, 'morphosyntacticcategories');
+});
 
-    (function(index) {
-      var currentWord = searchTerm[index];
-      var command = './lib/uqailaut.sh ' + currentWord;
-      var child = exec(command, function(err, stdout, stderr) {
-        if (err) {
-          throw err;
-        } else {
-          console.log('Analyzed: ' + currentWord);
-
-          var results = stdout.split('\n');
-          results.pop();
-
-          if (results.length === 0) {
-
-            allomorphs[currentWord].push(currentWord);
-            morphemes[currentWord].push(currentWord);
-            glosses[currentWord].push(currentWord);
-
-            processedTerms++;
-            if (processedTerms == submittedTerms) {
-              var output = {allomorphs: allomorphs, morphemes: morphemes, glosses: glosses};
-              console.log('Sent results: \n' + JSON.stringify(output));
-              res.send(output);
-            }
-
-          } else {
-
-            var aReg = new RegExp(/([^{:\/}]+)(?=\:)/g),
-                mReg = new RegExp(/([^{:\/}]+)(?=\/)/g),
-                gReg = new RegExp(/([^{:\/}]+)(?=\})/g);
-
-            for (var line in results) {
-              var aMatch = results[line].match(aReg).join('-'),
-                  mMatch = results[line].match(mReg).join('-'),
-                  gMatch = results[line].replace(/-/g, '.').match(gReg).join('-');
-
-              if (allomorphs[currentWord].indexOf(aMatch) === -1) allomorphs[currentWord].push(aMatch);
-              if (morphemes[currentWord].indexOf(mMatch) === -1) morphemes[currentWord].push(mMatch);
-              if (glosses[currentWord].indexOf(gMatch) === -1) glosses[currentWord].push(gMatch);
-
-            }
-            processedTerms++;
-            if (processedTerms == submittedTerms) {
-              var output = {allomorphs: allomorphs, morphemes: morphemes, glosses: glosses};
-              console.log('Sent results: \n' + JSON.stringify(output));
-              res.send(output);
-            }
-          }
-        }
-      });
-    })(i);
-  }
+app.all('/gloss/inuktitut/:word', function(req, res) {
+  analyzeInuktitutByTierByWord(req, res, 'gloss');
 });
 
 app.post('/train/lexicon/:pouchname', function(req, res) {
@@ -177,6 +130,112 @@ app.post('/search/:pouchname', function(req, res) {
   });
 
 });
+
+function analyzeInuktitutByTierByWord(req, res, returnTier) {
+  var searchTerm = encodeURIComponent(req.params.word).split('%20');
+  var allomorphs = {}, morphemes = {}, glosses = {};
+  farley = {};
+  var submittedTerms = searchTerm.length;
+  var processedTerms = 0;
+
+  for (var word in searchTerm) {
+    allomorphs[searchTerm[word]] = [];
+    morphemes[searchTerm[word]] = [];
+    glosses[searchTerm[word]] = [];
+  }
+
+  for (var i = 0; i < submittedTerms; i++) {
+
+    (function(index) {
+      var currentWord = searchTerm[index];
+      var command = './lib/uqailaut.sh ' + currentWord;
+      var child = exec(command, function(err, stdout, stderr) {
+        if (err) {
+          throw err;
+        } else {
+          console.log('Analyzed: ' + currentWord);
+
+          var results = stdout.split('\n');
+          results.pop();
+          farley[currentWord] = results;
+
+          if (results.length === 0) {
+
+            allomorphs[currentWord].push(currentWord);
+            morphemes[currentWord].push(currentWord);
+            glosses[currentWord].push(currentWord);
+
+            processedTerms++;
+            if (processedTerms == submittedTerms) {
+              var output = filterOutput({
+                analysisByTierByWord: {
+                  allomorphs: allomorphs,
+                  morphemes: morphemes,
+                  glosses: glosses
+                },
+                farley: farley
+              }, returnTier);
+              console.log('Sent results: \n' + JSON.stringify(output));
+              res.send(output);
+            }
+
+          } else {
+
+            var aReg = new RegExp(/([^{:\/}]+)(?=\:)/g),
+              mReg = new RegExp(/([^{:\/}]+)(?=\/)/g),
+              gReg = new RegExp(/([^{:\/}]+)(?=\})/g);
+
+            for (var line in results) {
+              var aMatch = results[line].match(aReg).join('-'),
+                mMatch = results[line].match(mReg).join('-'),
+                gMatch = results[line].replace(/-/g, '.').match(gReg).join('-');
+
+              if (allomorphs[currentWord].indexOf(aMatch) === -1) allomorphs[currentWord].push(aMatch);
+              if (morphemes[currentWord].indexOf(mMatch) === -1) morphemes[currentWord].push(mMatch);
+              if (glosses[currentWord].indexOf(gMatch) === -1) glosses[currentWord].push(gMatch);
+
+            }
+            processedTerms++;
+            if (processedTerms == submittedTerms) {
+              var output = filterOutput({
+                analysisByTierByWord: {
+                  allomorphs: allomorphs,
+                  morphemes: morphemes,
+                  glosses: glosses
+                },
+                farley: farley
+              }, returnTier);
+              console.log('Sent results: \n' + JSON.stringify(output));
+              res.send(output);
+            }
+          }
+        }
+      });
+    })(i);
+  }
+}
+
+function filterOutput(output, returnTier) {
+
+  switch (returnTier) {
+    case 'all':
+      return output;
+      break;
+    case 'allomorphs':
+      return output.analysisByTierByWord.allomorphs;
+      break;
+    case 'morphemes':
+      return output.analysisByTierByWord.morphemes;
+      break;
+    case 'gloss':
+      return output.analysisByTierByWord.glosses;
+      break;
+    case 'morphosyntacticcategories':
+      return output.analysisByTierByWord.glosses;
+      break;
+  }
+
+}
 
 function makeJSONRequest(options, data, onResult) {
 
