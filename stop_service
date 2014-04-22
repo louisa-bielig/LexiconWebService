@@ -1,6 +1,6 @@
 #!/bin/bash
 
-$FIELDDB_HOME/LexiconWebService/node_modules/forever/bin/forever stop service.js
+forever stop service.js
 
 cd $FIELDDB_HOME/LexiconWebService
 bash switch_to_develop_easy_setup.sh
