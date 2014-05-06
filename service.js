@@ -16,6 +16,7 @@ node_config.httpsOptions.cert = fs.readFileSync(node_config.httpsOptions.cert);
 app.configure(function() {
   app.use(express.favicon());
   app.use(express.logger());
+  app.use(express.static(__dirname + '/../FieldDBGlosser/samples/vanilla'));
   app.use(express.cookieParser());
   app.use(express.bodyParser());
   app.use(express.methodOverride());
