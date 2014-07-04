@@ -1,6 +1,6 @@
 #!/bin/bash
 
-forever stop service.js
+forever stop lexicon-service.js
 
 cd $FIELDDB_HOME/LexiconWebService
 bash switch_to_develop_easy_setup.sh
