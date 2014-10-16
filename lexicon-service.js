@@ -115,6 +115,10 @@ app.post('/search/:pouchname', function(req, res) {
 
   var pouchname = req.params.pouchname;
   var queryString = req.body.value;
+  if(!queryString){
+    res.send("400", []);
+    return;
+  }
   var queryTokens = search.processQueryString(queryString);
   var elasticsearchTemplateString = search.addQueryTokens(queryTokens);
 
