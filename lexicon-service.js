@@ -112,10 +112,22 @@ app.post('/train/lexicon/:pouchname', function(req, res) {
 });
 
 app.post('/search/:pouchname', function(req, res) {
-
+  console.log(req.body);
   var pouchname = req.params.pouchname;
   var queryString = req.body.value;
+  if (queryString && typeof queryString.trim === 'function') {
+    queryString = queryString.trim();
+    console.log('Trimming string '+ queryString);
+  }
+  if (!queryString) {
+    res.send('400', []);
+    return;
+  }
   var queryTokens = search.processQueryString(queryString);
+  if (!queryTokens || queryTokens.length === 0) {
+    res.send('400', []);
+    return;
+  }
   var elasticsearchTemplateString = search.addQueryTokens(queryTokens);
 
   var searchoptions = JSON.parse(JSON.stringify(node_config.searchOptions));
@@ -134,7 +146,9 @@ app.post('/search/:pouchname', function(req, res) {
 
 function analyzeInuktitutByTierByWord(req, res, returnTier) {
   var searchTerm = encodeURIComponent(req.params.word).split('%20');
-  var allomorphs = {}, morphemes = {}, glosses = {};
+  var allomorphs = {},
+    morphemes = {},
+    glosses = {};
   farley = {};
   var submittedTerms = searchTerm.length;
   var processedTerms = 0;

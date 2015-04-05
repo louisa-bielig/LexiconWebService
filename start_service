@@ -3,9 +3,6 @@
 cd $FIELDDB_HOME/LexiconWebService
 bash switch_to_producti.sh 
 
-forever \
+pm2 \
 start \
--al $FIELDDB_HOME/logs/fielddblexicon.log \
--ao $FIELDDB_HOME/logs/fielddblexiconout.log \
--ae $FIELDDB_HOME/logs/fielddblexiconerr.log \
 lexicon-service.js
