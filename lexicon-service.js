@@ -289,6 +289,6 @@ function makeJSONRequest(options, data, onResult) {
 
 }
 
-//https.createServer(node_config.httpsOptions, app).listen(node_config.httpsOptions.port);
-app.listen(node_config.httpsOptions.port);
+https.createServer(node_config.httpsOptions, app).listen(node_config.httpsOptions.port);
+// app.listen(node_config.httpsOptions.port);
 console.log(new Date() + 'Node+Express server listening on port %d', node_config.httpsOptions.port);
